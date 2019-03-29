@@ -1,0 +1,38 @@
+version: 2 # use CircleCI 2.0
+jobs: # a collection of steps
+  build: # runs not using Workflows must have a `build` job as entry point
+ 
+    working_directory: ~/Airport-Repository # directory where steps will run
+ 
+    docker: # run the steps with Docker
+      - image: circleci/openjdk:8-jdk-browsers # ...with this image as the primary container; this is where all `steps` will run
+ 
+    steps: # a collection of executable commands
+ 
+      - checkout: # check out source code to working directory
+           path: ~/Airport-Repository
+
+      - restore_cache: # restore the saved cache after the first run or if `pom.xml` has changed
+          key: circleci-java-junit-calc-demo # circleci-java-junit-calc-demo-{{ checksum "pom.xml" }}
+          
+      - run: chown -R $USER:$USER ~/Airport-Repository
+      
+      - run: mvn clean install -U
+ 
+      - run: mvn test # run the actual tests
+ 
+      - save_cache: # saves the project dependencies
+          paths:
+            - ~/.m2
+          key: circleci-java-junit-calc-demo # circleci-java-junit-calc-demo-{{ checksum "pom.xml" }}
+ 
+      - store_test_results: # uploads the test metadata from the `target/surefire-reports` directory so that it can show up in the CircleCI dashboard.
+          path: target/surefire-reports
+ 
+      - run:
+          name: Get API token
+          command: |
+            echo export token=$(curl -H "Content-Type: application/json" -X POST --data "{ \"client_id\": \"$client_id\",\"client_secret\": \"$client_secret\" }" https://xray.cloud.xpand-it.com/api/v1/authenticate| tr -d '"') >> $BASH_ENV
+            source $BASH_ENV
+ 
+      - run: 'curl -H "Content-Type: text/xml" -H "Authorization: Bearer $token" --data @target/surefire-reports/TEST-com.xpand.java.AirportTest.xml  "https://xray.cloud.xpand-it.com/api/v1/import/execution/junit?projectKey=AIR"'
